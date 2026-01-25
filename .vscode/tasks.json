@@ -1,0 +1,86 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Start Full Stack (Backend + Frontend)",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "dev"],
+      "isBackground": true,
+      "problemMatcher": {
+        "pattern": {
+          "regexp": "^.*$",
+          "file": 1,
+          "location": 2,
+          "message": 3
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^.*npm.*",
+          "endsPattern": "^.*listening|ready in.*"
+        }
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "Start Backend Only",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "dev:server"],
+      "isBackground": true,
+      "problemMatcher": {
+        "pattern": {
+          "regexp": "^.*$",
+          "file": 1,
+          "location": 2,
+          "message": 3
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^.*npm.*",
+          "endsPattern": "^.*listening|running.*"
+        }
+      }
+    },
+    {
+      "label": "Start Frontend Only",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "dev:client"],
+      "isBackground": true,
+      "problemMatcher": {
+        "pattern": {
+          "regexp": "^.*$",
+          "file": 1,
+          "location": 2,
+          "message": 3
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^.*npm.*",
+          "endsPattern": "^.*ready|listening.*"
+        }
+      }
+    },
+    {
+      "label": "Build for Production",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "build"],
+      "group": {
+        "kind": "build"
+      },
+      "problemMatcher": {
+        "pattern": {
+          "regexp": "^.*$",
+          "file": 1,
+          "location": 2,
+          "message": 3
+        }
+      }
+    }
+  ]
+}
