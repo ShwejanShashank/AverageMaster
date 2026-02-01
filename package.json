@@ -1,4 +1,4 @@
-{
+/*{
   "name": "averagemaster",
   "version": "1.0.0",
   "description": "A full-stack Node.js and React application",
@@ -20,4 +20,22 @@
     "concurrently": "^8.2.2"
   },
   "engines": { "node": "18.x" }
+}*/
+{
+  "name": "averagemaster",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "postinstall": "cd client && npm install",
+    "start": "node server/index.js",
+    "build": "npm run build:client",
+    "build:client": "cd client && npm run build"
+  },
+  "dependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": "18.x"
+  }
 }
+
