@@ -2,7 +2,12 @@ import React, { useEffect, useState } from "react";
 import { io } from "socket.io-client";
 import "./App.css";
 
-const socket = io("http://localhost:4000");
+import { FaInstagram, FaEnvelope, FaXTwitter } from "react-icons/fa6";
+
+// Use env var in production, fallback to localhost for dev
+const socket = io(
+  process.env.REACT_APP_BACKEND_URL || "http://localhost:4000"
+);
 
 function App() {
   const [step, setStep] = useState("landing"); // landing | create | join | lobby | round | result | final
@@ -27,6 +32,9 @@ function App() {
   const [totalPlayersReady, setTotalPlayersReady] = useState(0);
   const [isReady, setIsReady] = useState(false);
 
+  // simple client-side history of rounds
+  const [roundHistory, setRoundHistory] = useState([]);
+
   useEffect(() => {
     socket.on("roomUpdate", (roomData) => {
       setRoom({ ...roomData });
@@ -40,6 +48,7 @@ function App() {
       setIsReady(false);
       setReadyCount(0);
       setTotalPlayersReady(0);
+      setRoundHistory([]);
     });
 
     socket.on("roundStarted", ({ currentRound, totalRounds }) => {
@@ -61,6 +70,16 @@ function App() {
       setTotalPlayersReady(
         data.playerBreakdown ? data.playerBreakdown.length : 0
       );
+
+      setRoundHistory((prev) => [
+        ...prev,
+        {
+          round: currentRound,
+          avg: data.avg,
+          target: data.target,
+          winnerName: data.winnerName,
+        },
+      ]);
     });
 
     socket.on("readyUpdate", ({ readyCount, totalPlayers }) => {
@@ -87,7 +106,7 @@ function App() {
       socket.off("gameFinished");
       socket.off("roomClosed");
     };
-  }, []);
+  }, [currentRound]);
 
   const handleCreateRoom = () => {
     if (!name.trim()) return;
@@ -102,6 +121,12 @@ function App() {
       }
     );
   };
+  const copyRoomCode = () => {
+  if (roomCode) {
+    navigator.clipboard.writeText(roomCode);
+    alert("Room code copied!");
+  }
+};
 
   const handleJoinRoom = () => {
     if (!name.trim() || !roomCode.trim()) return;
@@ -136,13 +161,19 @@ function App() {
     setIsReady(true);
   };
 
+  const getScoreColor = (score) => {
+    if (score >= 7) return "score-bar-green";
+    if (score >= 3) return "score-bar-yellow";
+    return "score-bar-red";
+  };
+
   const renderLanding = () => (
-    <div className="card">
-      <h1>Average Master</h1>
+    <div className="auth-card">
+      <h1 className="app-title">Average Master</h1>
       <p className="small">
-        Everyone starts with <span className="highlight">10 points</span>.  
-        Each round, you pick a number between 0 and 100.  
-        We take the average, multiply by a factor, and you lose points based on how far you are from the target.
+        A strategic number game where you try to stay closest to the{" "}
+        <span className="highlight">target average</span> and preserve your
+        points.
       </p>
 
       <div className="label">Your name</div>
@@ -160,11 +191,29 @@ function App() {
           Join Room
         </button>
       </div>
+
+        <div className="social-row">
+        <a href="https://instagram.com/YOUR_USERNAME" target="_blank" className="social-emoji">
+          <FaInstagram />
+        </a>
+
+        <a href="mailto:YOUR_EMAIL@gmail.com" className="social-emoji">
+          <FaEnvelope />
+        </a>
+
+        <a href="https://twitter.com/YOUR_USERNAME" target="_blank" className="social-emoji">
+          <FaXTwitter />
+        </a>
+       </div>
+  
+
+
     </div>
+    
   );
 
   const renderCreate = () => (
-    <div className="card">
+    <div className="auth-card">
       <h2>Create Room</h2>
       <div className="label">Rounds</div>
       <input
@@ -191,7 +240,7 @@ function App() {
   );
 
   const renderJoin = () => (
-    <div className="card">
+    <div className="auth-card">
       <h2>Join Room</h2>
       <div className="label">Room code</div>
       <input
@@ -208,102 +257,312 @@ function App() {
   );
 
   const renderLobby = () => (
-    <div className="card">
-      <h2>Room {roomCode}</h2>
-      <div className="badge">
-        {isHost ? "You are the host" : "Waiting for host"}
+    <div className="dashboard-root">
+      <div className="top-bar">
+        <div className="top-left">
+          <div className="top-title">Average Master</div>
+          <div className="top-subtitle">Lobby</div>
+        </div>
+        <div className="top-right">
+                      <div className="pill" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              Room: <span className="pill-strong">{roomCode}</span>
+
+              <button
+                onClick={copyRoomCode}
+                style={{
+                  padding: "2px 6px",
+                  fontSize: "0.7rem",
+                  borderRadius: "6px",
+                  background: "#00b0ff",
+                  border: "none",
+                  color: "white",
+                  cursor: "pointer"
+                }}
+              >
+                Copy
+              </button>
+            </div>
+
+          <div className="pill">
+            You are{" "}
+            <span className="pill-strong">
+              {isHost ? "Host" : "Player"}
+            </span>
+          </div>
+        </div>
       </div>
 
-      <p className="small" style={{ marginTop: 12 }}>
-        Share this code with friends so they can join.
-      </p>
+      <div className="dashboard-layout">
+        <div className="panel panel-left">
+          <h3 className="panel-title">Players</h3>
+          {room && Object.values(room.players).length > 0 ? (
+            Object.values(room.players)
+              .sort((a, b) => b.score - a.score)
+              .map((p, idx) => (
+                <div key={idx} className="player-card">
+                  <div className="player-header">
+                    <span className="player-name">{p.name}</span>
+                    <span className="player-score">
+                      {Number(p.score).toFixed(2)} pts
+                    </span>
+                  </div>
+                  <div className="score-bar">
+                    <div
+                      className={`score-bar-fill ${getScoreColor(
+                        Number(p.score)
+                      )}`}
+                      style={{
+                        width: `${Math.max(
+                          0,
+                          Math.min(100, (Number(p.score) / 10) * 100)
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              ))
+          ) : (
+            <p className="small">Waiting for players…</p>
+          )}
+        </div>
 
-      <h3>Players</h3>
-      {room && Object.values(room.players).length > 0 ? (
-        Object.values(room.players).map((p, idx) => (
-          <div key={idx} className="leaderboard-row">
-            <span>{p.name}</span>
-            <span className="small">{Number(p.score).toFixed(2)} pts</span>
+        <div className="panel panel-center">
+          <h3 className="panel-title">Lobby Status</h3>
+          <p className="small">
+            Share the room code with your friends. Once everyone joins, the
+            host can start the game.
+          </p>
+          <div className="info-grid">
+            <div className="info-card">
+              <div className="info-label">Total Rounds</div>
+              <div className="info-value">
+                {room ? room.totalRounds : totalRounds}
+              </div>
+            </div>
+            <div className="info-card">
+              <div className="info-label">Factor</div>
+              <div className="info-value">
+                {room ? room.factor : factor}
+              </div>
+            </div>
+            <div className="info-card">
+              <div className="info-label">Players</div>
+              <div className="info-value">
+                {room ? Object.values(room.players).length : 0}
+              </div>
+            </div>
           </div>
-        ))
-      ) : (
-        <p className="small">Waiting for players…</p>
-      )}
 
-      {isHost && (
-        <button
-          style={{ marginTop: 16, width: "100%" }}
-          onClick={handleStartGame}
-          disabled={!room || Object.values(room.players).length < 2}
-        >
-          Start Game
-        </button>
-      )}
+          {isHost ? (
+            <button
+              className="primary-button"
+              onClick={handleStartGame}
+              disabled={!room || Object.values(room.players).length < 2}
+            >
+              Start Game
+            </button>
+          ) : (
+            <p className="small" style={{ marginTop: 16 }}>
+              Waiting for host to start the game…
+            </p>
+          )}
+        </div>
 
-      {!isHost && (
-        <p className="small" style={{ marginTop: 16 }}>
-          Waiting for host to start the game…
-        </p>
-      )}
+        <div className="panel panel-right">
+          <h3 className="panel-title">Host Controls</h3>
+          <p className="small">
+            Only visible to host. You can adjust settings before starting.
+          </p>
+          <div className="label">Rounds</div>
+          <input
+            type="number"
+            min="1"
+            max="50"
+            value={totalRounds}
+            onChange={(e) => setTotalRounds(e.target.value)}
+            disabled={!isHost}
+          />
+          <div className="label">Factor</div>
+          <input
+            type="number"
+            step="0.1"
+            value={factor}
+            onChange={(e) => setFactor(e.target.value)}
+            disabled={!isHost}
+          />
+        </div>
+      </div>
     </div>
   );
 
   const renderRound = () => (
-    <div className="card">
-      <div className="badge">
-        Round {currentRound} of {totalRoundsState}
+    <div className="dashboard-root">
+      <div className="top-bar">
+        <div className="top-left">
+          <div className="top-title">Average Master</div>
+          <div className="top-subtitle">
+            Round {currentRound} of {totalRoundsState}
+          </div>
+        </div>
+        <div className="top-right">
+                    <div className="pill" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            Room: <span className="pill-strong">{roomCode}</span>
+
+            <button
+              onClick={copyRoomCode}
+              style={{
+                padding: "2px 6px",
+                fontSize: "0.7rem",
+                borderRadius: "6px",
+                background: "#00b0ff",
+                border: "none",
+                color: "white",
+                cursor: "pointer"
+              }}
+            >
+              Copy
+            </button>
+          </div>
+
+          <div className="pill">
+            Status:{" "}
+            <span className="pill-strong">
+              {submitted ? "Waiting for others" : "Your move"}
+            </span>
+          </div>
+        </div>
       </div>
-      <h2>Choose your number</h2>
-      <p className="small">
-        Everyone still has some of their original 10 points.  
-        The farther you are from the target, the more points you lose.
-      </p>
 
-      <div className="label">Your choice: {choice}</div>
-      <div className="slider-row">
-        <input
-          type="range"
-          min="0"
-          max="100"
-          value={choice}
-          onChange={(e) => setChoice(Number(e.target.value))}
-        />
-        <input
-          type="number"
-          min="0"
-          max="100"
-          value={choice}
-          onChange={(e) => {
-            let v = Number(e.target.value);
-            if (v < 0) v = 0;
-            if (v > 100) v = 100;
-            setChoice(v);
-          }}
-          style={{ width: 80 }}
-        />
-      </div>
+      <div className="dashboard-layout">
+        {/* Left: Players */}
+        <div className="panel panel-left">
+          <h3 className="panel-title">Players & Scores</h3>
+          {room && Object.values(room.players).length > 0 ? (
+            Object.values(room.players)
+              .sort((a, b) => b.score - a.score)
+              .map((p, idx) => (
+                <div key={idx} className="player-card">
+                  <div className="player-header">
+                    <span className="player-name">
+                      #{idx + 1} {p.name}
+                    </span>
+                    <span className="player-score">
+                      {Number(p.score).toFixed(2)} pts
+                    </span>
+                  </div>
+                  <div className="score-bar">
+                    <div
+                      className={`score-bar-fill ${getScoreColor(
+                        Number(p.score)
+                      )}`}
+                      style={{
+                        width: `${Math.max(
+                          0,
+                          Math.min(100, (Number(p.score) / 10) * 100)
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              ))
+          ) : (
+            <p className="small">Waiting for players…</p>
+          )}
+        </div>
 
-      <button
-        style={{ marginTop: 16, width: "100%" }}
-        onClick={handleSubmitNumber}
-        disabled={submitted}
-      >
-        {submitted ? "Waiting for others…" : "Submit"}
-      </button>
+        {/* Center: Number selection */}
+        <div className="panel panel-center">
+          <h3 className="panel-title">Your Decision</h3>
+          <p className="small">
+            Choose a number between 0 and 100. The closer you are to the{" "}
+            <span className="highlight">target (average × factor)</span>, the
+            fewer points you lose.
+          </p>
 
-      {room && (
-        <div className="leaderboard">
-          <div className="small">Current scores</div>
-          {Object.values(room.players)
-            .sort((a, b) => b.score - a.score)
-            .map((p, idx) => (
-              <div key={idx} className="leaderboard-row">
-                <span>{p.name}</span>
-                <span>{Number(p.score).toFixed(2)} pts</span>
+          <div className="number-display">
+            <div className="number-label">Your choice</div>
+            <div className="number-value">{choice}</div>
+          </div>
+
+          <div className="slider-row-vertical">
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={choice}
+              onChange={(e) => setChoice(Number(e.target.value))}
+            />
+          </div>
+
+          <div className="number-input-row">
+            <input
+              type="number"
+              min="0"
+              max="100"
+              value={choice}
+              onChange={(e) => {
+                let v = Number(e.target.value);
+                if (v < 0) v = 0;
+                if (v > 100) v = 100;
+                setChoice(v);
+              }}
+            />
+            <button
+              className="primary-button"
+              onClick={handleSubmitNumber}
+              disabled={submitted}
+            >
+              {submitted ? "Waiting for others…" : "Submit choice"}
+            </button>
+          </div>
+        </div>
+
+        {/* Right: Round info / history */}
+        <div className="panel panel-right">
+          <h3 className="panel-title">Round Overview</h3>
+          <div className="info-grid">
+            <div className="info-card">
+              <div className="info-label">Round</div>
+              <div className="info-value">
+                {currentRound} / {totalRoundsState}
+              </div>
+            </div>
+            <div className="info-card">
+              <div className="info-label">Factor</div>
+              <div className="info-value">
+                {room ? room.factor : factor}
+              </div>
+            </div>
+            <div className="info-card">
+              <div className="info-label">Players</div>
+              <div className="info-value">
+                {room ? Object.values(room.players).length : 0}
+              </div>
+            </div>
+          </div>
+
+          <h4 className="panel-subtitle">Round History</h4>
+          <div className="history-list">
+            {roundHistory.length === 0 && (
+              <p className="small">No completed rounds yet.</p>
+            )}
+            {roundHistory.map((r) => (
+              <div key={r.round} className="history-item">
+                <div className="history-main">
+                  <span className="history-round">Round {r.round}</span>
+                  <span className="history-winner">
+                    {r.winnerName || "No winner"}
+                  </span>
+                </div>
+                <div className="history-meta">
+                  Avg {Number(r.avg).toFixed(1)} • Target{" "}
+                  {Number(r.target).toFixed(1)}
+                </div>
               </div>
             ))}
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 
@@ -311,53 +570,213 @@ function App() {
     if (!roundResult) return null;
     const { avg, target, factor, winnerName, playerBreakdown } = roundResult;
 
+    const sortedPlayers = [...playerBreakdown].sort(
+      (a, b) => a.distance - b.distance
+    );
+    const closest = sortedPlayers[0];
+    const highestLoss = [...playerBreakdown].sort(
+      (a, b) => b.loss - a.loss
+    )[0];
+
     return (
-      <div className="card">
-        <div className="badge">Round {currentRound} result</div>
-        <h2>Round Summary</h2>
+      <div className="dashboard-root">
+        <div className="top-bar">
+          <div className="top-left">
+            <div className="top-title">Average Master</div>
+            <div className="top-subtitle">Round {currentRound} Summary</div>
+          </div>
+          <div className="top-right">
+                    <div className="pill" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            Room: <span className="pill-strong">{roomCode}</span>
 
-        <p className="small">
-          Average of all numbers:{" "}
-          <span className="highlight">{Number(avg).toFixed(2)}</span>
-          <br />
-          Factor: <span className="highlight">{factor}</span>
-          <br />
-          Target (avg × factor):{" "}
-          <span className="highlight">{Number(target).toFixed(2)}</span>
-        </p>
-
-        <p className="small">
-          Winner:{" "}
-          <span className="highlight">
-            {winnerName ? winnerName : "No winner"}
-          </span>
-        </p>
-
-        <div className="leaderboard">
-          <div className="small">Players this round</div>
-          {playerBreakdown.map((p, idx) => (
-            <div key={p.id} className="leaderboard-row">
-              <span>
-                {idx + 1}. {p.name}
+            <button
+              onClick={copyRoomCode}
+              style={{
+                padding: "2px 6px",
+                fontSize: "0.7rem",
+                borderRadius: "6px",
+                background: "#00b0ff",
+                border: "none",
+                color: "white",
+                cursor: "pointer"
+              }}
+            >
+              Copy
+            </button>
+          </div>
+            <div className="pill">
+              Ready:{" "}
+              <span className="pill-strong">
+                {readyCount} /{" "}
+                {totalPlayersReady || playerBreakdown.length}
               </span>
-              <span>
-                chose {p.choice} | dist {p.distance.toFixed(2)} | loss {p.loss}
-              </span>
-              <span>{p.score.toFixed(2)} pts</span>
             </div>
-          ))}
+          </div>
         </div>
 
-        <div style={{ marginTop: 16 }}>
-          <button
-            onClick={handleReadyNext}
-            disabled={isReady}
-          >
-            {isReady ? "Waiting for others…" : "Ready for next round"}
-          </button>
-          <p className="small center" style={{ marginTop: 8 }}>
-            Ready: {readyCount} / {totalPlayersReady || playerBreakdown.length}
-          </p>
+        <div className="dashboard-layout">
+          {/* Left: Players this round */}
+          <div className="panel panel-left">
+            <h3 className="panel-title">Players This Round</h3>
+            <div className="round-player-list">
+              {playerBreakdown.map((p, idx) => (
+                <div key={p.id} className="player-card">
+                  <div className="player-header">
+                    <span className="player-name">
+                      #{idx + 1} {p.name}
+                    </span>
+                    <span className="player-score">
+                      {p.score.toFixed(2)} pts
+                    </span>
+                  </div>
+                <div className="player-meta-grid">
+                <div className="meta-item">
+                  <div className="meta-label">Choice</div>
+                  <div className="meta-value">{p.choice}</div>
+                </div>
+                <div className="meta-item">
+                  <div className="meta-label">Distance</div>
+                  <div className="meta-value">{p.distance.toFixed(2)}</div>
+                </div>
+                <div className="meta-item">
+                  <div className="meta-label">Loss</div>
+                  <div className="meta-value">{p.loss.toFixed(2)}</div>
+                </div>
+              </div>
+
+                  <div className="score-bar">
+                    <div
+                      className={`score-bar-fill ${getScoreColor(
+                        Number(p.score)
+                      )}`}
+                      style={{
+                        width: `${Math.max(
+                          0,
+                          Math.min(100, (Number(p.score) / 10) * 100)
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Center: Analytics */}
+          <div className="panel panel-center">
+            <h3 className="panel-title">Round Analytics</h3>
+            <div className="info-grid">
+              <div className="info-card">
+                <div className="info-label">Average</div>
+                <div className="info-value">
+                  {Number(avg).toFixed(2)}
+                </div>
+              </div>
+              <div className="info-card">
+                <div className="info-label">Factor</div>
+                <div className="info-value">{factor}</div>
+              </div>
+              <div className="info-card">
+                <div className="info-label">Target</div>
+                <div className="info-value">
+                  {Number(target).toFixed(2)}
+                </div>
+              </div>
+              <div className="info-card">
+                <div className="info-label">Winner</div>
+                <div className="info-value">
+                  {winnerName || "No winner"}
+                </div>
+              </div>
+              <div className="info-card">
+                <div className="info-label">Closest Guess</div>
+                <div className="info-value">
+                  {closest
+                    ? `${closest.name} (${closest.choice})`
+                    : "-"}
+                </div>
+              </div>
+              <div className="info-card">
+                <div className="info-label">Highest Loss</div>
+                <div className="info-value">
+                  {highestLoss
+                    ? `${highestLoss.name} (${highestLoss.loss.toFixed(
+                        2
+                      )})`
+                    : "-"}
+                </div>
+              </div>
+            </div>
+
+            <div className="race-track-visual">
+            <div className="race-track-line">
+              <div className="race-target">🎯 {Number(target).toFixed(1)}</div>
+
+              {playerBreakdown.map((p) => {
+                const maxDist = Math.max(...playerBreakdown.map(x => Math.abs(x.choice - target)), 1);
+                const distFromTarget = Math.abs(p.choice - target);
+                const progress = 100 - (distFromTarget / maxDist) * 100;
+                const shortName = p.name.slice(0, 3).toUpperCase();
+
+                return (
+                  <div key={p.id} className="race-runner" style={{ left: `${progress}%` }}>
+                    <div className="runner-guess">{p.choice}</div>
+                    <div className="runner-emoji">🏃‍➡️</div>
+                    <div className="runner-name">{shortName}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          </div>
+         
+
+          
+
+          {/* Right: Ready / next round */}
+          <div className="panel panel-right">
+            <h3 className="panel-title">Next Round</h3>
+            <p className="small">
+              Once everyone is ready, the next round will start
+              automatically.
+            </p>
+            <button
+              className="primary-button"
+              onClick={handleReadyNext}
+              disabled={isReady}
+            >
+              {isReady ? "Waiting for others…" : "Ready for next round"}
+            </button>
+            <p className="small center" style={{ marginTop: 8 }}>
+              Ready: {readyCount} /{" "}
+              {totalPlayersReady || playerBreakdown.length}
+            </p>
+
+            <h4 className="panel-subtitle" style={{ marginTop: 24 }}>
+              Round History
+            </h4>
+            <div className="history-list">
+              {roundHistory.length === 0 && (
+                <p className="small">No previous rounds.</p>
+              )}
+              {roundHistory.map((r) => (
+                <div key={r.round} className="history-item">
+                  <div className="history-main">
+                    <span className="history-round">
+                      Round {r.round}
+                    </span>
+                    <span className="history-winner">
+                      {r.winnerName || "No winner"}
+                    </span>
+                  </div>
+                  <div className="history-meta">
+                    Avg {Number(r.avg).toFixed(1)} • Target{" "}
+                    {Number(r.target).toFixed(1)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -368,30 +787,53 @@ function App() {
     const winner = finalLeaderboard[0];
 
     return (
-      <div className="card">
-        <h2>Game Over</h2>
-        <p className="small">Final winner</p>
-        <h1 className="highlight">{winner.name}</h1>
-        <p className="small">{Number(winner.score).toFixed(2)} points left</p>
-
-        <div className="leaderboard">
-          <div className="small">Final leaderboard</div>
-          {finalLeaderboard.map((p, idx) => (
-            <div key={p.id} className="leaderboard-row">
-              <span>
-                {idx + 1}. {p.name}
-              </span>
-              <span>{Number(p.score).toFixed(2)} pts</span>
+      <div className="dashboard-root">
+        <div className="top-bar">
+          <div className="top-left">
+            <div className="top-title">Average Master</div>
+            <div className="top-subtitle">Game Over</div>
+          </div>
+          <div className="top-right">
+            <div className="pill">
+              Room: <span className="pill-strong">{roomCode}</span>
             </div>
-          ))}
+          </div>
         </div>
 
-        <button
-          style={{ marginTop: 16, width: "100%" }}
-          onClick={() => window.location.reload()}
-        >
-          Play Again
-        </button>
+        <div className="dashboard-layout">
+          <div className="panel panel-center full-width-panel">
+            <h2 className="panel-title center">Final Winner</h2>
+            <div className="winner-display">
+              <div className="winner-name">{winner.name}</div>
+              <div className="winner-score">
+                {Number(winner.score).toFixed(2)} points left
+              </div>
+            </div>
+
+            <div className="leaderboard">
+              <div className="leaderboard-header">
+                <span>Rank</span>
+                <span>Player</span>
+                <span>Score</span>
+              </div>
+              {finalLeaderboard.map((p, idx) => (
+                <div key={p.id} className="leaderboard-row">
+                  <span>#{idx + 1}</span>
+                  <span>{p.name}</span>
+                  <span>{Number(p.score).toFixed(2)} pts</span>
+                </div>
+              ))}
+            </div>
+
+            <button
+              className="primary-button"
+              style={{ marginTop: 24 }}
+              onClick={() => window.location.reload()}
+            >
+              Play Again
+            </button>
+          </div>
+        </div>
       </div>
     );
   };
@@ -404,7 +846,7 @@ function App() {
   else if (step === "round") content = renderRound();
   else if (step === "result") content = renderResult();
   else if (step === "final") content = renderFinal();
-
+  
   return <div className="app-root">{content}</div>;
 }
 
