@@ -5,9 +5,7 @@ import "./App.css";
 import { FaInstagram, FaEnvelope, FaXTwitter } from "react-icons/fa6";
 
 // Use env var in production, fallback to localhost for dev
-const socket = io(
-  process.env.REACT_APP_BACKEND_URL || "http://localhost:4000"
-);
+const socket = io();
 
 function App() {
   const [step, setStep] = useState("landing"); // landing | create | join | lobby | round | result | final
