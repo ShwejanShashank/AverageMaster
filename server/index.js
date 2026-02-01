@@ -135,8 +135,6 @@ io.on("connection", (socket) => {
         const loss = distance / 10; // balanced loss
         player.score -= loss;
 
-        // prevent negative score
-        if (player.score < 0) player.score = 0;
 
         if (distance < closestDistance) {
           closestDistance = distance;
