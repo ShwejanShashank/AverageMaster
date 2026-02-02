@@ -683,7 +683,7 @@ function App() {
               <div className="info-card">
                 <div className="info-label">Winner</div>
                 <div className="info-value">
-                  {winnerName || "No winner"}
+                  <p className="winner">{winnerName || "No winner"}</p>
                 </div>
               </div>
               <div className="info-card">
